@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Accidentes España - D3.js</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    body { font-family: sans-serif; }
+    svg { background-color: #f9f9f9; }
+    .line { fill: none; stroke-width: 8px; }
+    .axis path, .axis line { stroke: #000; }
+    .tooltip {
+      position: absolute;
+      padding: 4px 8px;
+      background: #fff;
+      border: 1px solid #ccc;
+      pointer-events: none;
+      font-size: 12px;
+    }
+
+#comunidad-select {
+
+    padding: 10px;
+
+}
+
+
+
+  </style>
+</head>
+<body>
+
+<h1>Muertes por Comunidad Autónoma (2016-2024)</h1>
+<select id="comunidad-select">
+  <option value="Andalucía">Andalucía</option>
+  <option value="Cataluña">Cataluña</option>
+  <option value="Comunidad Valenciana">Comunidad Valenciana</option>
+  <option value="Castilla y León">Castilla y León</option>
+  <option value="Galicia">Galicia</option>
+  <option value="País Vasco">País Vasco</option>
+  <option value="Castilla-La Mancha">Castilla-La Mancha</option>
+  <option value="Extremadura">Extremadura</option>
+  <option value="Islas Baleares">Islas Baleares</option>
+  <option value="Islas Canarias">Islas Canarias</option>
+  <option value="Aragón">Aragón</option>
+  <option value="Navarra">Navarra</option>
+  <option value="La Rioja">La Rioja</option>
+  <option value="Comunidad de Madrid">Comunidad de Madrid</option>
+  <option value="Región de Murcia">Región de Murcia</option>
+  <option value="Ceuta">Ceuta</option>
+  <option value="Melilla">Melilla</option>
+</select>
+
+<svg width="900" height="500"></svg>
+<div class="tooltip" style="opacity:0"></div>
+
+<script>
+// Dimensiones
+const svg = d3.select("svg");
+const width = +svg.attr("width") - 80;
+const height = +svg.attr("height") - 80;
+const g = svg.append("g").attr("transform", "translate(50,30)");
+
+// Escalas
+const x = d3.scaleLinear().range([0, width]);
+const y = d3.scaleLinear().range([height, 0]);
+
+// Ejes
+const xAxis = g.append("g").attr("transform", `translate(0,${height})`);
+const yAxis = g.append("g");
+
+// Línea
+const line = d3.line()
+    .x(d => x(d.year))
+    .y(d => y(d.deaths));
+
+// Tooltip
+const tooltip = d3.select(".tooltip");
+
+// Cargar JSON de muertes por comunidad
+d3.json("muertes_por_comunidad.json").then(data => {
+
+    function update(comunidad) {
+        const values = Object.entries(data[comunidad]).map(([year, deaths]) => ({
+            year: +year,
+            deaths: +deaths
+        }));
+
+        x.domain(d3.extent(values, d => d.year));
+        y.domain([0, d3.max(values, d => d.deaths) * 1.1]);
+
+        xAxis.call(d3.axisBottom(x).tickFormat(d3.format("d")));
+        yAxis.call(d3.axisLeft(y));
+
+        // Borrar línea anterior
+        g.selectAll(".line").remove();
+
+        g.append("path")
+            .datum(values)
+            .attr("class", "line")
+            .attr("stroke", "green")
+            .attr("d", line);
+
+        // Puntos interactivos
+        const points = g.selectAll(".point").data(values);
+        points.exit().remove();
+
+        points.enter()
+            .append("circle")
+            .attr("class", "point")
+            .attr("r", 10)
+            .merge(points)
+            .attr("cx", d => x(d.year))
+            .attr("cy", d => y(d.deaths))
+            .attr("fill", "black")
+            .on("mouseover", (event, d) => {
+                tooltip.transition().duration(200).style("opacity", 0.9);
+                tooltip.html(`Año: ${d.year}<br>Muertes: ${d.deaths}`)
+                       .style("left", (event.pageX+40) + "px")
+                       .style("top", (event.pageY-40) + "px");
+            })
+            .on("mouseout", () => tooltip.transition().duration(200).style("opacity", 0));
+    }
+
+    // Inicial
+    const select = d3.select("#comunidad-select");
+    update(select.node().value);
+
+    // Cambiar comunidad
+    select.on("change", () => update(select.node().value));
+
+});
+</script>
+
+</body>
+</html>
+

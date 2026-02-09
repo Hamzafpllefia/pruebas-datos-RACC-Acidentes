@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Bar Chart Race: Tipos de Accidentes</title>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<style>
+  body { font-family: sans-serif; }
+  .bar { fill-opacity: 0.6; }
+  .label { font-weight: bold; font-size: 12px; }
+  .ticker { font-weight: bold; font-size: 48px; fill: #555; }
+</style>
+</head>
+<body>
+
+<h1>Bar Chart Race: Tipos de Accidentes (2016-2024)</h1>
+<svg width="960" height="600"></svg>
+
+<script>
+// ----------------------
+// Parámetros
+// ----------------------
+const svg = d3.select("svg");
+const width = +svg.attr("width") - 100;
+const height = +svg.attr("height") - 80;
+const n = 10; // Top n tipos de accidentes
+const margin = {top: 16, right: 6, bottom: 6, left: 0};
+const barSize = 48;
+const duration = 1000; // ms por año
+
+const gBars = svg.append("g").attr("transform", `translate(${margin.left+50},${margin.top})`);
+const gLabels = svg.append("g").attr("transform", `translate(${margin.left+50},${margin.top})`);
+const tickerText = svg.append("text")
+  .attr("class", "ticker")
+  .attr("x", width)
+  .attr("y", margin.top + barSize*(n-0.45))
+  .attr("text-anchor", "end");
+
+// Escalas
+const x = d3.scaleLinear().range([0, width]);
+const y = d3.scaleBand().range([0, height]).padding(0.1);
+const color = d3.scaleOrdinal(d3.schemeTableau10);
+
+// ----------------------
+// Cargar JSON de accidentes por año
+// ----------------------
+d3.json("accidentes_global.json").then(rawData => {
+
+  // Convertir JSON a un array por años
+  const data = Object.entries(rawData).map(([year, accidentes]) => {
+    return {
+      year: +year,
+      values: accidentes.map(d => ({name: d.TIPO_ACCIDENTE_SIMPLE, value: d.TOTAL_VICTIMAS_24H}))
+    };
+  });
+
+  // Inicializar ticker
+  tickerText.text(data[0].year);
+
+  // Función de actualización
+  function update(frameIndex) {
+    const frame = data[frameIndex];
+    const top = frame.values
+      .sort((a,b)=>b.value-a.value)
+      .slice(0, n);
+
+    x.domain([0, d3.max(top, d=>d.value)]);
+    y.domain(top.map(d=>d.name).reverse());
+
+    // BARRAS
+    const bars = gBars.selectAll("rect").data(top, d=>d.name);
+    bars.join(
+      enter => enter.append("rect")
+        .attr("class", "bar")
+        .attr("fill", d=>color(d.name))
+        .attr("y", d=>y(d.name))
+        .attr("height", y.bandwidth())
+        .attr("x", 0)
+        .attr("width", 0),
+      update => update,
+      exit => exit.remove()
+    )
+    .transition().duration(duration)
+      .attr("width", d=>x(d.value))
+      .attr("y", d=>y(d.name));
+
+    // ETIQUETAS
+    const labels = gLabels.selectAll("text").data(top, d=>d.name);
+    labels.join(
+      enter => enter.append("text")
+        .attr("class","label")
+        .attr("y", d=>y(d.name)+y.bandwidth()/2)
+        .attr("x", d=>x(d.value)+5)
+        .attr("dy","0.35em")
+        .text(d=>d.name),
+      update => update,
+      exit => exit.remove()
+    )
+    .transition().duration(duration)
+      .attr("x", d=>x(d.value)+5)
+      .attr("y", d=>y(d.name)+y.bandwidth()/2);
+
+    // Ticker
+    tickerText.transition().duration(duration).text(frame.year);
+  }
+
+  // Animación
+  let i = 0;
+  d3.interval(() => {
+    update(i);
+    i = (i+1) % data.length;
+  }, duration);
+
+});
+</script>
+</body>
+</html>
